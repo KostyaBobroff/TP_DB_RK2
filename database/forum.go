@@ -1,6 +1,8 @@
 package database
 
 import (
+	"log"
+
 	"github.com/Vlad104/TP_DB_RK2/models"
 	"github.com/jackc/pgx"
 )
@@ -13,7 +15,7 @@ const (
 		)) 
 		RETURNING "user"
 	`
-	
+
 	getForumSQL = `
 		SELECT slug, title, "user", posts, threads
 		FROM forums
@@ -25,7 +27,7 @@ const (
 		VALUES ($1, $2, $3, $4, $5, (SELECT slug FROM forums WHERE slug = $6)) 
 		RETURNING author, created, forum, id, message, title
 	`
-	
+
 	getForumThreadsSinceSQL = `
 		SELECT author, created, forum, id, message, slug, title, votes
 		FROM threads
@@ -55,47 +57,39 @@ const (
 		LIMIT $2::TEXT::INTEGER
 	`
 	getForumUsersSienceSQl = `
-		SELECT nickname, fullname, about, email
-		FROM users
-		WHERE nickname IN (
-				SELECT forum_user FROM forum_users WHERE forum = $1
-			) 
-			AND LOWER(nickname) > LOWER($2::TEXT)
-		ORDER BY nickname
+		SELECT forum_user, fullname, about, email
+		FROM forum_users
+		WHERE forum = $1
+		AND LOWER(forum_user) > LOWER($2::TEXT)
+		ORDER BY forum_user
 		LIMIT $3::TEXT::INTEGER
 	`
 	getForumUsersDescSienceSQl = `
-		SELECT nickname, fullname, about, email
-		FROM users
-		WHERE nickname IN (
-				SELECT forum_user FROM forum_users WHERE forum = $1
-			) 
-			AND LOWER(nickname) < LOWER($2::TEXT)
-		ORDER BY nickname DESC
+		SELECT forum_user, fullname, about, email
+		FROM forum_users
+		WHERE forum = $1
+		AND LOWER(forum_user) < LOWER($2::TEXT)
+		ORDER BY forum_user DESC
 		LIMIT $3::TEXT::INTEGER
 	`
 	getForumUsersSQl = `
-		SELECT nickname, fullname, about, email
-		FROM users
-		WHERE nickname IN (
-				SELECT forum_user FROM forum_users WHERE forum = $1
-			)
-		ORDER BY nickname
+		SELECT forum_user, fullname, about, email
+		FROM forum_users
+		WHERE forum = $1
+		ORDER BY forum_user
 		LIMIT $2::TEXT::INTEGER
 	`
 	getForumUsersDescSQl = `
-		SELECT nickname, fullname, about, email
-		FROM users
-		WHERE nickname IN (
-				SELECT forum_user FROM forum_users WHERE forum = $1
-			)
-		ORDER BY nickname DESC
+		SELECT forum_user, fullname, about, email
+		FROM forum_users
+		WHERE forum = $1
+		ORDER BY forum_user DESC
 		LIMIT $2::TEXT::INTEGER
 	`
 )
 
 // /forum/create Создание форума
-func CreateForumDB(f *models.Forum) (*models.Forum, error)  {
+func CreateForumDB(f *models.Forum) (*models.Forum, error) {
 	err := DB.pool.QueryRow(
 		createForumSQL,
 		&f.Slug,
@@ -121,14 +115,14 @@ func GetForumDB(slug string) (*models.Forum, error) {
 	f := models.Forum{}
 
 	err := DB.pool.QueryRow(
-			getForumSQL, 
-			slug,
-		).Scan(
-			&f.Slug,
-			&f.Title,
-			&f.User,
-			&f.Posts,
-			&f.Threads,
+		getForumSQL,
+		slug,
+	).Scan(
+		&f.Slug,
+		&f.Title,
+		&f.User,
+		&f.Posts,
+		&f.Threads,
 	)
 
 	if err != nil {
@@ -148,22 +142,22 @@ func CreateForumThreadDB(t *models.Thread) (*models.Thread, error) {
 	}
 
 	err := DB.pool.QueryRow(
-		createForumThreadSQL, 
+		createForumThreadSQL,
 		&t.Author,
-		&t.Created, 
+		&t.Created,
 		&t.Message,
 		&t.Title,
 		&t.Slug,
 		&t.Forum,
 	).Scan(
 		&t.Author,
-		&t.Created, 
+		&t.Created,
 		&t.Forum,
 		&t.ID,
 		&t.Message,
 		&t.Title,
 	)
-	
+
 	switch ErrorCode(err) {
 	case pgxOK:
 		return t, nil
@@ -176,13 +170,13 @@ func CreateForumThreadDB(t *models.Thread) (*models.Thread, error) {
 	}
 }
 
-var queryForumWithSience = map[string]string {
-	"true": getForumThreadsDescSinceSQL,
+var queryForumWithSience = map[string]string{
+	"true":  getForumThreadsDescSinceSQL,
 	"false": getForumThreadsSinceSQL,
 }
 
-var queryForumNoSience = map[string]string {
-	"true": getForumThreadsDescSQL,
+var queryForumNoSience = map[string]string{
+	"true":  getForumThreadsDescSQL,
 	"false": getForumThreadsSQL,
 }
 
@@ -203,7 +197,7 @@ func GetForumThreadsDB(slug, limit, since, desc string) (*models.Threads, error)
 	if err != nil {
 		return nil, ForumNotFound
 	}
-	
+
 	threads := models.Threads{}
 	for rows.Next() {
 		t := models.Thread{}
@@ -225,17 +219,17 @@ func GetForumThreadsDB(slug, limit, since, desc string) (*models.Threads, error)
 		if err != nil {
 			return nil, ForumNotFound
 		}
-	}	
+	}
 	return &threads, nil
 }
 
-var queryForumUserWithSience = map[string]string {
-	"true": getForumUsersDescSienceSQl,
+var queryForumUserWithSience = map[string]string{
+	"true":  getForumUsersDescSienceSQl,
 	"false": getForumUsersSienceSQl,
 }
 
-var queryForumUserNoSience = map[string]string {
-	"true": getForumUsersDescSQl,
+var queryForumUserNoSience = map[string]string{
+	"true":  getForumUsersDescSQl,
 	"false": getForumUsersSQl,
 }
 
@@ -243,7 +237,7 @@ var queryForumUserNoSience = map[string]string {
 func GetForumUsersDB(slug, limit, since, desc string) (*models.Users, error) {
 	var rows *pgx.Rows
 	var err error
-	
+
 	if since != "" {
 		query := queryForumUserWithSience[desc]
 		rows, err = DB.pool.Query(query, slug, since, limit)
@@ -254,9 +248,10 @@ func GetForumUsersDB(slug, limit, since, desc string) (*models.Users, error) {
 	defer rows.Close()
 
 	if err != nil {
+		log.Println(err)
 		return nil, ForumNotFound
 	}
-	
+
 	users := models.Users{}
 	for rows.Next() {
 		u := models.User{}
@@ -274,6 +269,6 @@ func GetForumUsersDB(slug, limit, since, desc string) (*models.Users, error) {
 		if err != nil {
 			return nil, ForumNotFound
 		}
-	}	
+	}
 	return &users, nil
 }
