@@ -3,8 +3,9 @@ package database
 import (
 	"fmt"
 	"strconv"
-	"time"
 	"strings"
+	"time"
+
 	"github.com/Vlad104/TP_DB_RK2/models"
 	"github.com/jackc/pgx"
 )
@@ -57,7 +58,7 @@ const (
 		ORDER BY id DESC
 		LIMIT $3::TEXT::INTEGER
 	`
-	
+
 	getPostsSienceLimitTreeSQL = `
 		SELECT id, author, parent, message, forum, thread, created
 		FROM posts
@@ -140,7 +141,7 @@ const (
 		ORDER BY id
 		LIMIT $2::TEXT::INTEGER
 	`
-	// ThreadVote	
+	// ThreadVote
 	getThreadVoteByIDSQL = `
 		SELECT votes.voice, threads.id, threads.votes, u.nickname
 		FROM (SELECT 1) s
@@ -254,7 +255,7 @@ func UpdateThreadDB(thread *models.ThreadUpdate, param string) (*models.Thread, 
 
 func authorExists(nickname string) bool {
 	var user models.User
-	err :=  DB.pool.QueryRow(
+	err := DB.pool.QueryRow(
 		getUserByNickname,
 		nickname,
 	).Scan(
@@ -292,8 +293,8 @@ func parentNotExists(parent int64) bool {
 	}
 
 	var t int64
-	err := DB.pool.QueryRow(`SELECT id FROM posts WHERE id = $1`, parent).Scan(&t); 
-	
+	err := DB.pool.QueryRow(`SELECT id FROM posts WHERE id = $1`, parent).Scan(&t)
+
 	if err != nil {
 		return true
 	}
@@ -335,8 +336,8 @@ func CreateThreadDB(posts *models.Posts, param string) (*models.Posts, error) {
 
 		temp := fmt.Sprintf(queryBody, post.Author, created, post.Message, thread.ID, post.Parent, thread.Forum, post.Parent)
 		// удаление запятой в конце queryBody для последнего подзапроса
-		if i == postsNumber - 1 {
-			temp = temp[:len(temp) - 1]
+		if i == postsNumber-1 {
+			temp = temp[:len(temp)-1]
 		}
 		query.WriteString(temp)
 	}
@@ -365,48 +366,51 @@ func CreateThreadDB(posts *models.Posts, param string) (*models.Posts, error) {
 			&post.Parent,
 			&post.Thread,
 		)
-		insertPosts = append(insertPosts, &post) 
+		insertPosts = append(insertPosts, &post)
 	}
 	err = rows.Err()
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
 	}
-
-	// по хорошему это впихнуть в хранимые процедуры, но нормальные ребята предпочитают костылить
-	tx.Exec(`UPDATE forums SET posts = posts + $1 WHERE slug = $2`, len(insertPosts), thread.Forum)
-	for _, p := range insertPosts {
-		tx.Exec(`INSERT INTO forum_users VALUES ($1, $2) ON CONFLICT DO NOTHING`, p.Author, p.Forum)
-	}
-
 	tx.Commit()
+	// по хорошему это впихнуть в хранимые процедуры, но нормальные ребята предпочитают костылить
+	DB.pool.Exec(`UPDATE forums SET posts = posts + $1 WHERE slug = $2`, len(insertPosts), thread.Forum)
+
+	for _, p := range insertPosts {
+		DB.pool.Exec(`  INSERT INTO forum_users ("forum_user", "forum", "email", "fullname", "about")
+		SELECT nickname, $2, email, fullname, about
+		FROM users
+		WHERE nickname = $1
+		ON CONFLICT DO NOTHING;`, p.Author, p.Forum)
+	}
 
 	return &insertPosts, nil
 }
 
-var queryPostsWithSience = map[string]map[string]string {
-	"true": map[string]string {
-		"tree": getPostsSienceDescLimitTreeSQL,
+var queryPostsWithSience = map[string]map[string]string{
+	"true": map[string]string{
+		"tree":        getPostsSienceDescLimitTreeSQL,
 		"parent_tree": getPostsSienceDescLimitParentTreeSQL,
-		"flat": getPostsSienceDescLimitFlatSQL,
+		"flat":        getPostsSienceDescLimitFlatSQL,
 	},
-	"false": map[string]string {
-		"tree": getPostsSienceLimitTreeSQL,
+	"false": map[string]string{
+		"tree":        getPostsSienceLimitTreeSQL,
 		"parent_tree": getPostsSienceLimitParentTreeSQL,
-		"flat": getPostsSienceLimitFlatSQL,
+		"flat":        getPostsSienceLimitFlatSQL,
 	},
 }
 
-var queryPostsNoSience = map[string]map[string]string {
-	"true": map[string]string {
-		"tree": getPostsDescLimitTreeSQL,
+var queryPostsNoSience = map[string]map[string]string{
+	"true": map[string]string{
+		"tree":        getPostsDescLimitTreeSQL,
 		"parent_tree": getPostsDescLimitParentTreeSQL,
-		"flat": getPostsDescLimitFlatSQL,
+		"flat":        getPostsDescLimitFlatSQL,
 	},
-	"false": map[string]string {
-		"tree": getPostsLimitTreeSQL,
+	"false": map[string]string{
+		"tree":        getPostsLimitTreeSQL,
 		"parent_tree": getPostsLimitParentTreeSQL,
-		"flat": getPostsLimitFlatSQL,
+		"flat":        getPostsLimitFlatSQL,
 	},
 }
 
@@ -491,7 +495,7 @@ func MakeThreadVoteDB(vote *models.Vote, param string) (*models.Thread, error) {
 			&thread.Title,
 			&thread.Votes,
 		)
-	}	
+	}
 	if err != nil {
 		return nil, ForumNotFound
 	}
@@ -515,7 +519,7 @@ func MakeThreadVoteDB(vote *models.Vote, param string) (*models.Thread, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	tx.Commit()
 
 	return &thread, nil
