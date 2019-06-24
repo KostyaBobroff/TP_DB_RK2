@@ -8,7 +8,7 @@ RUN go mod download
 COPY . .
 RUN go build main.go
 
-FROM ubuntu:19.04
+FROM ubuntu:18.04
 ENV DEBIAN_FRONTEND=noninteractive 
 ENV PGVER 11
 EXPOSE 5000
