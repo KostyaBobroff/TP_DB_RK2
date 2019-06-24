@@ -13,7 +13,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PGVER 11
 EXPOSE 5000
 
+RUN apt-get update && apt-get install -y wget gnupg && \
+    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+RUN echo "deb http://apt.postgresql.org/pub/repos/apt bionic-pgdg main" > /etc/apt/sources.list.d/PostgreSQL.list
+
 RUN apt-get update && apt-get install -y postgresql-$PGVER
+
 
 WORKDIR TP_DB_RK2
 COPY . .
