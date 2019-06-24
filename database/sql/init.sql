@@ -1,20 +1,16 @@
+DROP SCHEMA IF EXISTS public CASCADE;
+CREATE SCHEMA public;
+
 CREATE EXTENSION IF NOT EXISTS citext;
 
-DROP TABLE IF EXISTS "forums" CASCADE;
-DROP TABLE IF EXISTS "posts" CASCADE;
-DROP TABLE IF EXISTS "threads" CASCADE;
-DROP TABLE IF EXISTS "users" CASCADE;
-DROP TABLE IF EXISTS "votes" CASCADE;
-DROP TABLE IF EXISTS "forum_users" CASCADE;
-
-CREATE TABLE IF NOT EXISTS users (
-  "nickname" CITEXT UNIQUE PRIMARY KEY,
+CREATE UNLOGGED TABLE IF NOT EXISTS users (
+  "nickname" CITEXT PRIMARY KEY,
   "email"    CITEXT UNIQUE NOT NULL,
   "fullname" CITEXT NOT NULL,
   "about"    TEXT
 );
 
-CREATE TABLE IF NOT EXISTS forums (
+CREATE UNLOGGED TABLE IF NOT EXISTS forums (
   "posts"   BIGINT  DEFAULT 0,
   "slug"    CITEXT  UNIQUE NOT NULL,
   "threads" INTEGER DEFAULT 0,
@@ -22,8 +18,8 @@ CREATE TABLE IF NOT EXISTS forums (
   "user"    CITEXT  NOT NULL REFERENCES users ("nickname")
 );
 
-CREATE TABLE IF NOT EXISTS threads (
-  "id"      SERIAL         UNIQUE PRIMARY KEY,
+CREATE UNLOGGED TABLE IF NOT EXISTS threads (
+  "id"      SERIAL         PRIMARY KEY,
   "author"  CITEXT         NOT NULL REFERENCES users ("nickname"),
   "created" TIMESTAMPTZ(3) DEFAULT now(),
   "forum"   CITEXT         NOT NULL REFERENCES forums ("slug"),
@@ -33,8 +29,8 @@ CREATE TABLE IF NOT EXISTS threads (
   "votes"   INTEGER        DEFAULT 0
 );
 
-CREATE TABLE IF NOT EXISTS posts (
-  "id"       BIGSERIAL         UNIQUE PRIMARY KEY,
+CREATE UNLOGGED TABLE IF NOT EXISTS posts (
+  "id"       BIGSERIAL      PRIMARY KEY,
   "author"   CITEXT         NOT NULL REFERENCES users ("nickname"),
   "created"  TIMESTAMPTZ(3) DEFAULT now(),
   "forum"    CITEXT         NOT NULL REFERENCES forums ("slug"),
@@ -45,58 +41,27 @@ CREATE TABLE IF NOT EXISTS posts (
   "path"     BIGINT []
 );
 
-CREATE TABLE IF NOT EXISTS votes (
+CREATE UNLOGGED TABLE IF NOT EXISTS votes (
   "thread"   INT NOT NULL REFERENCES threads("id"),
   "voice"    INTEGER NOT NULL,
   "nickname" CITEXT   NOT NULL
 );
 
 
-CREATE TABLE forum_users
-(
+CREATE UNLOGGED TABLE forum_users (
   "forum_user"  CITEXT COLLATE ucs_basic NOT NULL,
-  "forum"       CITEXT NOT NULL
+  "forum"       CITEXT NOT NULL,
+  "email"       TEXT NOT NULL,
+  "fullname"    TEXT NOT NULL,
+  "about"       TEXT
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_fu_user ON forum_users (forum, forum_user);
 
-DROP INDEX IF EXISTS idx_users_nickname;
-DROP INDEX IF EXISTS idx_users_nickname_email;
-DROP INDEX IF EXISTS idx_forums_slug;
-DROP INDEX IF EXISTS idx_threads_id;
-DROP INDEX IF EXISTS idx_threads_slug;
-DROP INDEX IF EXISTS idx_threads_created_forum;
-DROP INDEX IF EXISTS idx_posts_id;
-DROP INDEX IF EXISTS idx_posts_thread_id;
-DROP INDEX IF EXISTS idx_posts_thread_id0;
-DROP INDEX IF EXISTS idx_posts_thread_path1_id;
-DROP INDEX IF EXISTS idx_posts_thread_path_parent;
-DROP INDEX IF EXISTS idx_posts_thread;
-DROP INDEX IF EXISTS idx_posts_path_AA;
-DROP INDEX IF EXISTS idx_posts_path_AD;
-DROP INDEX IF EXISTS idx_posts_path_DA;
-DROP INDEX IF EXISTS idx_posts_path_DD;
-DROP INDEX IF EXISTS idx_posts_path_desc;
-DROP INDEX IF EXISTS idx_posts_paths;
-DROP INDEX IF EXISTS idx_posts_thread_path;
-DROP INDEX IF EXISTS idx_posts_thread_id_created;
-DROP INDEX IF EXISTS idx_votes_thread_nickname;
-
-DROP INDEX IF EXISTS idx_fu_user;
-DROP INDEX IF EXISTS idx_fu_forum;
-
-CREATE INDEX IF NOT EXISTS idx_fu_user ON forum_users (forum, forum_user);
-CREATE INDEX IF NOT EXISTS idx_fu_forum ON forum_users (forum);
-
-CREATE INDEX IF NOT EXISTS idx_users_nickname ON users (nickname);
-
-CREATE INDEX IF NOT EXISTS idx_forums_slug ON forums (slug);
-
-CREATE INDEX IF NOT EXISTS idx_threads_id ON threads (id);
 CREATE INDEX IF NOT EXISTS idx_threads_slug ON threads (slug);
 CREATE INDEX IF NOT EXISTS idx_threads_forum ON threads (forum);
 
 CREATE INDEX IF NOT EXISTS idx_posts_forum ON posts (forum);
-CREATE INDEX IF NOT EXISTS idx_posts_id ON posts (id);
 CREATE INDEX IF NOT EXISTS idx_posts_thread_path ON posts (thread, path);
 CREATE INDEX IF NOT EXISTS idx_posts_thread_id ON posts (thread, id);
 CREATE INDEX IF NOT EXISTS idx_posts_thread_id0 ON posts (thread, id) WHERE parent = 0;
@@ -149,9 +114,14 @@ CREATE TRIGGER thread_insert AFTER INSERT ON threads
 DROP FUNCTION IF EXISTS add_forum_user();
 CREATE OR REPLACE FUNCTION add_forum_user() RETURNS TRIGGER AS $add_forum_user$
 BEGIN
-  INSERT INTO forum_users VALUES (NEW.author, NEW.forum) ON CONFLICT DO NOTHING;
+  INSERT INTO forum_users ("forum_user", "forum", "email", "fullname", "about")
+  SELECT nickname, NEW.forum, email, fullname, about
+  FROM users
+  WHERE nickname = NEW.author
+  ON CONFLICT DO NOTHING;
   RETURN NULL;
 END;
 $add_forum_user$
 LANGUAGE plpgsql;
+
 CREATE TRIGGER add_forum_user AFTER INSERT ON threads FOR EACH ROW EXECUTE PROCEDURE add_forum_user();
